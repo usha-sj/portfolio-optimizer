@@ -1,10 +1,19 @@
 # main.py
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from screener import screen_tickers
-from optimizer import optimize
+from optimizer import optimize, efficient_frontier
+from analytics import get_benchmark_comparison, get_sector_breakdown
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 RISK_VOL_MAP = {
     "low": 0.20,
@@ -30,5 +39,12 @@ def run_optimizer(req: OptimizeRequest):
 
     selected = screen_tickers(req.universe, req.n_stocks, req.start, req.end)
     result = optimize(selected, target_vol, req.start, req.end)
+
+    weights_list = list(result["weights"].values())
+
     result["screened_from"] = req.universe
+    result["frontier"] = efficient_frontier(selected, req.start, req.end)
+    result["benchmark"] = get_benchmark_comparison(selected, weights_list, req.start, req.end)
+    result["sectors"] = get_sector_breakdown(selected, weights_list)
+
     return result
